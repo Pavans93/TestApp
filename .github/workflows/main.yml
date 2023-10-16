@@ -27,9 +27,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
 
-      - name: Debug GitHub Secret
-        run: echo "GOOGLE_PROJECT_ID: $GOOGLE_PROJECT_ID"
-
       - name: Build Docker Image
         run: |
           docker buildx create --use
