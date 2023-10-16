@@ -1,4 +1,4 @@
-name: Deploy Angular App with Docker
+name: Deploy to GitHub Pages
 
 on:
   push:
@@ -6,29 +6,68 @@ on:
       - main
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v2
+      - name: Checkout Repository
+        uses: actions/checkout@v2
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: 14
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 14
 
-    - name: Install Dependencies
-      run: npm install
+      - name: Install Dependencies
+        run: npm install
 
-    - name: Build Angular App
-      run: npm run build -- --prod
+      - name: Build Angular App
+        run: npm run build -- --prod
 
-    - name: Build Docker Image
-      run: docker build -t test-app-docker-image .
+      - name: Build Docker Image
+        run: docker build -t test-app-docker-image .
 
-    - name: Push to Docker Hub
-      run: |
-        echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
-        docker tag test-app-docker-image ${{ secrets.DOCKER_USERNAME }}/test-app-docker-image
-        docker push ${{ secrets.DOCKER_USERNAME }}/test-app-docker-image
+      - name: Push to Docker Hub
+        run: |
+          echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
+          docker tag test-app-docker-image ${{ secrets.DOCKER_USERNAME }}/test-app-docker-image
+          docker push ${{ secrets.DOCKER_USERNAME }}/test-app-docker-image
+
+      - name: Deploy to GitHub Pages
+        run: |
+          git config --global user.email "pavanshegde93@github.com"
+          git config --global user.name "Pavans93"
+    
+         # Create or switch to the gh-pages branch
+         git checkout gh-pages || git checkout --orphan gh-pages
+    
+         # Remove existing content from the gh-pages branch
+         git rm -rf .
+    
+         # Commit the removal
+         git commit -m "Clean gh-pages branch"
+    
+         # Switch back to the main branch
+         git checkout main
+    
+        # Create a new worktree for the gh-pages branch in the 'dist' directory
+        git worktree add -B gh-pages dist/test-app
+    
+        # Copy the .nojekyll file to the 'dist' directory (if needed)
+        cp .nojekyll dist/test-app
+    
+        # Create a README.md file in the 'dist' directory (if needed)
+        echo "# This is the gh-pages branch" >> dist/test-app/README.md
+    
+        # Navigate to the 'dist' directory
+        cd dist/test-app
+    
+        # Stage all changes
+        git add .
+    
+        # Commit the changes
+        git commit -m "Deploy to GitHub Pages"
+    
+        # Push the changes to the gh-pages branch
+        git push origin gh-pages
+
