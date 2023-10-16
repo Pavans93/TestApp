@@ -1,4 +1,4 @@
-name: Deploy Angular App with Docker
+name: Deploy to Google Cloud Run
 
 on:
   push:
@@ -6,29 +6,43 @@ on:
       - main
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v2
+      - name: Checkout Repository
+        uses: actions/checkout@v2
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: 18
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
 
-    - name: Install Dependencies
-      run: npm install
+      - name: Install Dependencies
+        run: npm install
 
-    - name: Build Angular App
-      run: npm run build --prod
+      - name: Build Angular App
+        run: npm run build --prod
 
-    - name: Build Docker Image
-      run: docker build -t test-app-docker-image .
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
 
-    - name: Push to Docker Hub
-      run: |
-        echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
-        docker tag test-app-docker-image ${{ secrets.DOCKER_USERNAME }}/test-app-docker-image
-        docker push ${{ secrets.DOCKER_USERNAME }}/test-app-docker-image
+      - name: Build Docker Image
+        run: |
+          docker buildx create --use
+          docker buildx inspect --bootstrap
+          docker buildx build --platform linux/amd64,linux/arm64 -t gcr.io/$GOOGLE_PROJECT_ID/test-app .
+
+      - name: Authenticate with Google Cloud
+        run: |
+          echo $GCLOUD_SERVICE_KEY | base64 -d > /tmp/gcloud-service-key.json
+          gcloud auth activate-service-account --key-file=/tmp/gcloud-service-key.json
+          gcloud auth configure-docker
+
+      - name: Deploy to Google Cloud Run
+        run: |
+          gcloud config set project $GOOGLE_PROJECT_ID
+          gcloud run deploy test-app --image gcr.io/$GOOGLE_PROJECT_ID/test-app --platform managed --allow-unauthenticated
+        env:
+          GOOGLE_PROJECT_ID: ${{ secrets.GOOGLE_PROJECT_ID }}
+          GCLOUD_SERVICE_KEY: ${{ secrets.GCLOUD_SERVICE_KEY }}
