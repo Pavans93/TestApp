@@ -1,4 +1,4 @@
-name: Deploy to Cloud Run
+name: Deploy to Google Cloud Run
 
 on:
   push:
@@ -13,22 +13,36 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v2
 
-      - name: Set up Google Cloud CLI
-        uses: GoogleCloudPlatform/github-actions/setup-gcloud@master
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
         with:
-          service_account_key: ${{ secrets.GCLOUD_SERVICE_KEY }}
-          project_id: ${{ secrets.GOOGLE_PROJECT_ID }}
-          export_default_credentials: true
+          node-version: 18
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Build Angular App
+        run: npm run build --prod
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
 
       - name: Build Docker Image
         run: |
-          docker build -t gcr.io/${{ secrets.GOOGLE_PROJECT_ID }}/test-app:latest .
-          docker push gcr.io/${{ secrets.GOOGLE_PROJECT_ID }}/test-app:latest
+          docker buildx create --use
+          docker buildx inspect --bootstrap
+          docker buildx build --platform linux/amd64,linux/arm64 -t gcr.io/$GOOGLE_PROJECT_ID/test-app .
 
-      - name: Deploy to Cloud Run
+      - name: Authenticate with Google Cloud
         run: |
-          gcloud run deploy test-app \
-            --image gcr.io/${{ secrets.GOOGLE_PROJECT_ID }}/test-app:latest \
-            --platform managed \
-            --region us-central1 \
-            --allow-unauthenticated
+          echo $GCLOUD_SERVICE_KEY | base64 -d > /tmp/gcloud-service-key.json
+          gcloud auth activate-service-account --key-file=/tmp/gcloud-service-key.json
+          gcloud auth configure-docker
+
+      - name: Deploy to Google Cloud Run
+        run: |
+          gcloud config set project $GOOGLE_PROJECT_ID
+          gcloud run deploy test-app --image gcr.io/$GOOGLE_PROJECT_ID/test-app --platform managed --allow-unauthenticated
+        env:
+          GOOGLE_PROJECT_ID: ${{ secrets.GOOGLE_PROJECT_ID }}
+          GCLOUD_SERVICE_KEY: ${{ secrets.GCLOUD_SERVICE_KEY }}
